@@ -1,0 +1,28 @@
+{
+  "name": "pupeter",
+  "version": "1.0.0",
+  "description": "Microserviço gerador de PDF",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsup",
+    "start": "node dist/server.cjs"
+  },
+  "keywords": [],
+  "author": "alysson rafael",
+  "license": "ISC",
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "fastify": "^5.7.4",
+    "puppeteer": "^24.37.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.2",
+    "@types/puppeteer": "^5.4.7",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
