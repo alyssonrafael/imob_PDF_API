@@ -1,0 +1,21 @@
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "3333:3333"
+    environment:
+      PORT: 3333
+      GOTENBERG_URL: http://gotenberg:3000
+    depends_on:
+      gotenberg:
+        condition: service_healthy
+    restart: unless-stopped

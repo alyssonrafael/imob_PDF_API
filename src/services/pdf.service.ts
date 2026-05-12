@@ -1,84 +1,84 @@
-import puppeteer from "puppeteer";
-
 interface GeneratePdfOptions {
   html: string;
   headerTitle?: string;
-  showBrand?: boolean; 
+  showBrand?: boolean;
 }
-
-let activeGenerations = 0;
-const MAX_CONCURRENT = 3;
 
 export function isServerOverloaded(): boolean {
-  return activeGenerations >= MAX_CONCURRENT;
+  return false;
 }
 
-export async function generatePdfBuffer({ html, showBrand = false , headerTitle = "Imob Gestão" }: GeneratePdfOptions): Promise<Buffer> {
-  let browser;
+export async function generatePdfBuffer({
+  html,
+  showBrand = false,
+  headerTitle = "Imob Gestão",
+}: GeneratePdfOptions): Promise<Buffer> {
+  const GOTENBERG_URL =
+    process.env.GOTENBERG_URL || "http://localhost:3000";
 
-  activeGenerations++;
+  const now = new Date();
+  const dataAtual = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+  const year = now.getFullYear();
 
-  try {
-     browser = await puppeteer.launch({
-          headless: "shell",
-          args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        });
+  const headerHtml = `<!DOCTYPE html>
+<html><head><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-size: 9px; font-family: Arial, sans-serif; color: #444; width: 100%; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 0 20mm 5px; width: 100%; }
+</style></head>
+<body>
+  <div class="row">
+    <strong style="font-size: 10pt; color: #000;">${headerTitle}</strong>
+    <span>${dataAtual}</span>
+  </div>
+</body></html>`;
 
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
+  const footerHtml = `<!DOCTYPE html>
+<html><head><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 100%; font-size: 9px; font-family: Arial, sans-serif; color: #444; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 5px 20mm 0; width: 100%; }
+</style></head>
+<body>
+  <div class="row">
+    <span>${showBrand ? `Imob Gestão © ${year}` : ""}</span>
+    <span>Página <span class="pageNumber"></span> de <span class="totalPages"></span></span>
+  </div>
+</body></html>`;
 
-    const dataAtual = new Intl.DateTimeFormat("pt-BR", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    }).format(new Date());
+  const form = new FormData();
+  form.append("files", new Blob([html], { type: "text/html" }), "index.html");
+  form.append(
+    "files",
+    new Blob([headerHtml], { type: "text/html" }),
+    "header.html"
+  );
+  form.append(
+    "files",
+    new Blob([footerHtml], { type: "text/html" }),
+    "footer.html"
+  );
+  form.append("paperWidth", "8.27");
+  form.append("paperHeight", "11.69");
+  form.append("marginTop", "0.984");
+  form.append("marginBottom", "0.984");
+  form.append("marginLeft", "0.787");
+  form.append("marginRight", "0.787");
+  form.append("printBackground", "true");
 
-      const year = new Date().getFullYear();
+  const response = await fetch(
+    `${GOTENBERG_URL}/forms/chromium/convert/html`,
+    { method: "POST", body: form }
+  );
 
-
-    // Utilizando o Uint8Array gerado pelo Puppeteer e convertendo para Buffer do Node
-    const pdfUint8Array = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: `
-        <div style="font-size: 8pt; font-family: Arial, sans-serif; width: 100%; text-align: right; padding-right: 20mm; color: #666;">
-            <strong style="color: #000; font-size: 10pt;">${headerTitle}</strong><br/>
-            ${dataAtual}
-        </div>
-      `,
-      footerTemplate: `
-      <div style="
-        width: 100%;
-        font-size: 9px;
-        padding: 5px 20mm 0;
-        border-top: 1px solid #ccc;
-        box-sizing: border-box;
-        font-family: Arial, sans-serif;
-        color: #444;
-      ">
-        ${
-          showBrand
-            ? `
-            <div style="float: left;">
-              Imob Gestão © ${year}
-            </div>
-          `
-            : ""
-        }
-
-        <div style="float: right;">
-          Página <span class="pageNumber"></span> de 
-          <span class="totalPages"></span>
-        </div>
-      </div>
-    `,
-      margin: { top: "25mm", bottom: "25mm", right: "20mm", left: "20mm" },
-    });
-
-    return Buffer.from(pdfUint8Array);
-  } finally {
-    activeGenerations--;
-    if (browser) await browser.close();
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Gotenberg error ${response.status}: ${body}`);
   }
+
+  return Buffer.from(await response.arrayBuffer());
 }
